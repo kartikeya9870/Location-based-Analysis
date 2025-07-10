@@ -1,0 +1,82 @@
+import pandas as pd
+import tkinter as tk
+from tkinter import messagebox, ttk
+import folium
+from folium.plugins import MarkerCluster
+import webbrowser
+import os
+
+df = pd.read_csv("restaurant_data.xlsx.csv")
+df.columns = df.columns.str.strip()
+df = df.dropna(subset=['Latitude', 'Longitude', 'City'])
+
+def generate_map():
+    try:
+        map_file = "restaurant_map.html"
+
+        center_lat = df['Latitude'].mean()
+        center_lon = df['Longitude'].mean()
+
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=2)
+        marker_cluster = MarkerCluster().add_to(m)
+
+        for _, row in df.iterrows():
+            popup_info = f"<b>{row['Restaurant Name']}</b><br>Cuisine: {row['Cuisines']}<br>Rating: {row['Aggregate rating']}"
+            folium.Marker(
+                location=[row['Latitude'], row['Longitude']],
+                popup=popup_info,
+                icon=folium.Icon(color="blue", icon="cutlery", prefix="fa")
+            ).add_to(marker_cluster)
+
+        m.save(map_file)
+        messagebox.showinfo("Map Generated", "Map saved as 'restaurant_map.html'")
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to generate map:\n{e}")
+
+def open_map():
+    map_file = "restaurant_map.html"
+    if os.path.exists(map_file):
+        webbrowser.open(map_file)
+    else:
+        messagebox.showinfo("Map Not Found", "Please generate the map first.")
+
+def show_city_stats():
+    grouped = df.groupby('City').agg({
+        'Restaurant Name': 'count',
+        'Aggregate rating': 'mean',
+        'Price range': 'mean'
+    }).rename(columns={
+        'Restaurant Name': 'Restaurant Count',
+        'Aggregate rating': 'Average Rating',
+        'Price range': 'Average Price Range'
+    }).sort_values('Restaurant Count', ascending=False).head(10)
+
+    stats_win = tk.Toplevel(root)
+    stats_win.title("Top Cities")
+    stats_win.geometry("500x300")
+    stats_win.configure(bg="#ffffff")
+
+    tk.Label(stats_win, text="Top 10 Cities by Restaurant Count", font=("Arial", 14, "bold"), bg="white").pack(pady=10)
+    
+    text = tk.Text(stats_win, wrap="none", width=60, height=10)
+    text.pack(padx=10, pady=5)
+
+    for idx, row in grouped.iterrows():
+        line = f"{idx}: {row['Restaurant Count']} restaurants | Avg Rating: {round(row['Average Rating'],2)} | Avg Price: {round(row['Average Price Range'],2)}\n"
+        text.insert("end", line)
+
+root = tk.Tk()
+root.title("Restaurant Geo-Analysis")
+root.geometry("420x320")
+root.configure(bg="#f0f0f5")
+
+tk.Label(root, text="Geographical Analysis of Restaurants", font=("Arial", 16, "bold"), bg="#f0f0f5").pack(pady=20)
+
+ttk.Button(root, text="🗺 Generate Earth Map", command=generate_map, width=30).pack(pady=10)
+ttk.Button(root, text="🌍 Open Earth Map", command=open_map, width=30).pack(pady=5)
+ttk.Button(root, text="📊 Show Top Cities Stats", command=show_city_stats, width=30).pack(pady=10)
+
+tk.Label(root, text="Map saved as: restaurant_map.html", font=("Arial", 9), bg="#f0f0f5", fg="gray").pack(side="bottom", pady=10)
+
+root.mainloop()
